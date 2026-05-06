@@ -22,6 +22,7 @@ Instrumentation is powered by [Monocle2AI](https://github.com/monocle2ai/monocle
 | `/ok-instrument [path]` | Add tracing — zero-code (generates `okahu.yaml`) or code-based (injects setup code). |
 | `/ok-run [command]` | Run your app with tracing enabled. Auto-detects instrumentation approach. |
 | `/ok-local-trace [query]` | View local traces from `.monocle/` folder. Supports natural language queries. |
+| `/ok-add-framework <name>` | Add instrumentation support for a new AI/ML framework. |
 
 ### Session management
 
@@ -35,7 +36,6 @@ Instrumentation is powered by [Monocle2AI](https://github.com/monocle2ai/monocle
 | Command | Description |
 |---------|-------------|
 | `/ok-login [env]` | Authenticate with Okahu Cloud via GitHub Device Flow. |
-| `/ok-add-framework <name>` | Add instrumentation support for a new AI/ML framework. |
 | `/kahu <query>` | Query the Okahu SRE Agent API (natural language). |
 
 ## Typical workflow
@@ -46,23 +46,3 @@ Instrumentation is powered by [Monocle2AI](https://github.com/monocle2ai/monocle
 /ok-run                    # Run with tracing enabled
 /ok-local-trace            # View collected traces
 ```
-
-## Supported frameworks (auto-instrumented)
-
-| Category | Frameworks |
-|----------|------------|
-| LLM | OpenAI, Anthropic, Azure AI, Bedrock, Gemini, LiteLLM, Mistral, HuggingFace |
-| Agents | LangChain, LlamaIndex, LangGraph, CrewAI, Haystack, OpenAI Agents, AutoGen |
-| HTTP | Flask, FastAPI, AIOHTTP |
-| Cloud | Azure Functions, AWS Lambda |
-| MCP | FastMCP, MCP SDK |
-
-## Requirements
-
-- Python 3.9+
-- `monocle_apptrace` package (`pip install monocle_apptrace`)
-- For cloud tracing: Okahu API key (get one via `/ok-login`)
-
-## License
-
-Apache-2.0
