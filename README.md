@@ -43,7 +43,7 @@ Instrumentation is powered by [Monocle2AI](https://github.com/monocle2ai/monocle
 ```
 /ok-scan ./my-app          # Analyze codebase, pick entry points
 /ok-instrument ./my-app    # Generate tracing config
-/ok-run flask run          # Run with tracing enabled
+/ok-run                    # Run with tracing enabled
 /ok-local-trace            # View collected traces
 ```
 
