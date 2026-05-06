@@ -1,11 +1,14 @@
-# Okahu Monocle — Claude Code Skills
+# Okahu — Claude Code Skills
 
-Add [Monocle](https://github.com/monocle2ai/monocle) tracing to your Python apps using Claude Code slash commands.
+Add observability to your Python apps using Claude Code slash commands. Scan your codebase, add tracing, run with telemetry, and view traces — all from the CLI.
+
+Instrumentation is powered by [Monocle2AI](https://github.com/monocle2ai/monocle).
 
 ## Install
 
 ```
-/plugin install okahu-demos/claude-skills
+/plugin marketplace add okahu-demos/claude-skills
+/plugin install okahu@claude-skills
 ```
 
 ## Commands
@@ -16,8 +19,8 @@ Add [Monocle](https://github.com/monocle2ai/monocle) tracing to your Python apps
 |---------|-------------|
 | `/ok-scan [path]` | Scan codebase to recommend what to trace. Detects frameworks (LangChain, OpenAI, Flask, etc.) and entry points. |
 | `/ok-find [query]` | Find methods by search or exact name, then trace execution paths back to entry points. |
-| `/ok-instrument [path]` | Add tracing — zero-code (generates `okahu.yaml`) or code-based (injects `setup_monocle_telemetry()`). |
-| `/ok-run [command]` | Run your app with Monocle tracing enabled. Auto-detects instrumentation approach. |
+| `/ok-instrument [path]` | Add tracing — zero-code (generates `okahu.yaml`) or code-based (injects setup code). |
+| `/ok-run [command]` | Run your app with tracing enabled. Auto-detects instrumentation approach. |
 | `/ok-local-trace [query]` | View local traces from `.monocle/` folder. Supports natural language queries. |
 
 ### Session management
@@ -32,7 +35,7 @@ Add [Monocle](https://github.com/monocle2ai/monocle) tracing to your Python apps
 | Command | Description |
 |---------|-------------|
 | `/ok-login [env]` | Authenticate with Okahu Cloud via GitHub Device Flow. |
-| `/ok-add-framework <name>` | Add instrumentation support for a new AI/ML framework to Monocle. |
+| `/ok-add-framework <name>` | Add instrumentation support for a new AI/ML framework. |
 | `/kahu <query>` | Query the Okahu SRE Agent API (natural language). |
 
 ## Typical workflow
