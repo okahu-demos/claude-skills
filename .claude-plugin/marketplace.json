@@ -1,0 +1,13 @@
+{
+  "name": "claude-skills",
+  "owner": {
+    "name": "Okahu"
+  },
+  "plugins": [
+    {
+      "name": "okahu-monocle",
+      "source": "./",
+      "description": "Instrument your Python apps with Monocle tracing. Scan, instrument, run, and view traces."
+    }
+  ]
+}
