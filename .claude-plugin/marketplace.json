@@ -5,9 +5,9 @@
   },
   "plugins": [
     {
-      "name": "okahu-monocle",
+      "name": "okahu",
       "source": "./",
-      "description": "Instrument your Python apps with Monocle tracing. Scan, instrument, run, and view traces."
+      "description": "Instrument your Python apps with tracing. Scan, instrument, run, and view traces."
     }
   ]
 }
