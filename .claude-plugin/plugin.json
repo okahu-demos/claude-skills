@@ -1,0 +1,10 @@
+{
+  "name": "okahu-monocle",
+  "version": "0.1.0",
+  "description": "Instrument your Python apps with Monocle tracing. Scan codebases, add zero-code or code-based tracing, run with telemetry, and view traces locally or in Okahu Cloud.",
+  "author": "Okahu",
+  "homepage": "https://github.com/okahu-demos/claude-skills",
+  "repository": "https://github.com/okahu-demos/claude-skills",
+  "license": "Apache-2.0",
+  "keywords": ["monocle", "tracing", "observability", "okahu", "instrumentation", "telemetry"]
+}
