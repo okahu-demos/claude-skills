@@ -23,6 +23,7 @@ Instrumentation is powered by [Monocle2AI](https://github.com/monocle2ai/monocle
 | `/ok-run [command]` | Run your app with tracing enabled. Auto-detects instrumentation approach. |
 | `/ok-local-trace [query]` | View local traces from `.monocle/` folder. Supports natural language queries. |
 | `/ok-add-framework <name>` | Add instrumentation support for a new AI/ML framework. |
+| `/ok-imagegen <prompt>` | Generate visual assets using Codex CLI with gpt-image-2. |
 
 ### Session management
 

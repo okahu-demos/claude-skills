@@ -43,7 +43,7 @@ Automatically detect mode based on input:
 
 ### For Search Mode (natural language query):
 1. If no query provided, **USE AskUserQuestion** to ask for description
-2. Run `python ${CLAUDE_PLUGIN_ROOT}/scripts/ast_parser.py <path>` if not already done
+2. Run `python .claude/scripts/ast_parser.py <path>` if not already done
 3. Search class/method names, docstrings for matches
 4. Rank by relevance to query
 5. Present candidates in text output: "Found N matches..."

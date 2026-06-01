@@ -154,7 +154,7 @@ Note: Build options dynamically from:
 
 **If Zero-code approach (okahu.yaml exists):**
 ```bash
-python ${CLAUDE_PLUGIN_ROOT}/scripts/okahu_instrument.py <command>
+python .claude/scripts/okahu_instrument.py <command>
 ```
 
 **If Code-based approach (setup code injected):**

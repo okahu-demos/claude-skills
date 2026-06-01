@@ -45,11 +45,11 @@ Users can say things like:
 3. If local traces exist:
    - Interpret the user's natural language query
    - **For interactive viewing**: Suggest the user run the interactive viewer directly:
-     `! python ${CLAUDE_PLUGIN_ROOT}/scripts/trace_viewer.py [options]`
+     `! python .claude/scripts/trace_viewer.py [options]`
      (This launches a curses-based TUI with arrow-key navigation — must run via `!` prefix)
    - **For inline display**: Map to `trace_viewer.py --print` or `trace_minify.py` options
-   - Run: `python ${CLAUDE_PLUGIN_ROOT}/scripts/trace_viewer.py --print [options]` for inline output
-   - Run: `python ${CLAUDE_PLUGIN_ROOT}/scripts/trace_minify.py [options]` for compact debug output
+   - Run: `python .claude/scripts/trace_viewer.py --print [options]` for inline output
+   - Run: `python .claude/scripts/trace_minify.py [options]` for compact debug output
 4. Optionally update `.okahu/SESSION.md` if notable findings
 
 ## Interactive Viewer (trace_viewer.py)
@@ -58,9 +58,9 @@ A curses-based TUI for exploring traces with keyboard navigation.
 **Must be launched by the user** with `!` prefix (needs a real TTY):
 
 ```bash
-! python ${CLAUDE_PLUGIN_ROOT}/scripts/trace_viewer.py                     # Latest traces
-! python ${CLAUDE_PLUGIN_ROOT}/scripts/trace_viewer.py --last 5m           # Recent traces
-! python ${CLAUDE_PLUGIN_ROOT}/scripts/trace_viewer.py --trace-id abc123   # Specific trace
+! python .claude/scripts/trace_viewer.py                     # Latest traces
+! python .claude/scripts/trace_viewer.py --last 5m           # Recent traces
+! python .claude/scripts/trace_viewer.py --trace-id abc123   # Specific trace
 ```
 
 Keys:
@@ -148,9 +148,9 @@ Append to `.okahu/SESSION.md` if errors found or notable observations:
 /ok-local-trace show trace abc123
 
 # Interactive viewer (user runs directly)
-! python ${CLAUDE_PLUGIN_ROOT}/scripts/trace_viewer.py
-! python ${CLAUDE_PLUGIN_ROOT}/scripts/trace_viewer.py --last 5m
-! python ${CLAUDE_PLUGIN_ROOT}/scripts/trace_viewer.py --trace-id abc123
+! python .claude/scripts/trace_viewer.py
+! python .claude/scripts/trace_viewer.py --last 5m
+! python .claude/scripts/trace_viewer.py --trace-id abc123
 
 # Inline output (works in Bash tool)
 /ok-local-trace --last 5m

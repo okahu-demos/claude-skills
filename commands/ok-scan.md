@@ -43,7 +43,7 @@ If ALL code uses supported frameworks → just use `setup_monocle_telemetry()`, 
 ## Steps
 
 1. Ask user for the app folder path (use AskUserQuestion if not provided in arguments)
-2. **FIRST: Run framework detection** - `python ${CLAUDE_PLUGIN_ROOT}/scripts/monocle_detector.py <path>`
+2. **FIRST: Run framework detection** - `python .claude/scripts/monocle_detector.py <path>`
 3. **Check for existing instrumentation** - Search for `setup_monocle_telemetry` in the codebase:
    - Run: `grep -r "setup_monocle_telemetry" <path> --include="*.py" -l`
    - If found, note which files already have monocle setup
@@ -53,16 +53,16 @@ If ALL code uses supported frameworks → just use `setup_monocle_telemetry()`, 
    - **USE AskUserQuestion** with appropriate options (see "Existing Instrumentation" section below)
    - If user chooses "keep as-is" → show next steps and exit
    - If user chooses auto-instrumentation → suggest setup code and skip to step 12
-5. Run `python ${CLAUDE_PLUGIN_ROOT}/scripts/ast_parser.py <path> -o <path>/.okahu/ast_data.json --pretty`
-6. Run `python ${CLAUDE_PLUGIN_ROOT}/scripts/entry_detector.py <path>/.okahu/ast_data.json`
+5. Run `python .claude/scripts/ast_parser.py <path> -o <path>/.okahu/ast_data.json --pretty`
+6. Run `python .claude/scripts/entry_detector.py <path>/.okahu/ast_data.json`
 7. **USE AskUserQuestion** to ask which entry points to analyze (see example below)
-8. Run `python ${CLAUDE_PLUGIN_ROOT}/scripts/call_graph.py <path>/.okahu/ast_data.json`
-9. Run `python ${CLAUDE_PLUGIN_ROOT}/scripts/relevance_scorer.py .okahu/call_graph.json --entry <selected>`
+8. Run `python .claude/scripts/call_graph.py <path>/.okahu/ast_data.json`
+9. Run `python .claude/scripts/relevance_scorer.py .okahu/call_graph.json --entry <selected>`
 10. **USE AskUserQuestion** to ask about medium-relevance modules (multiSelect: true)
-11. Run `python ${CLAUDE_PLUGIN_ROOT}/scripts/arg_analyzer.py <path>/.okahu/ast_data.json`
+11. Run `python .claude/scripts/arg_analyzer.py <path>/.okahu/ast_data.json`
 12. **USE AskUserQuestion** to ask how to handle large args for each flagged method
 13. **Compute minimal instrumentation set** - Avoid overlap by only instrumenting entry points:
-    - Run: `python ${CLAUDE_PLUGIN_ROOT}/scripts/call_graph.py <path>/.okahu/call_graph.json --minimize <path>/.okahu/choices.json -o <path>/.okahu/minimal.json`
+    - Run: `python .claude/scripts/call_graph.py <path>/.okahu/call_graph.json --minimize <path>/.okahu/choices.json -o <path>/.okahu/minimal.json`
     - This removes methods that are already covered by parent calls
     - Example: if `A.method1() -> B.method2()` and both selected, only instrument A
 14. Save choices to `<path>/.okahu/choices.json` with format:
@@ -280,7 +280,7 @@ When user selects "Scan for gaps":
 
 ## Scripts Location
 
-Helper scripts are in `${CLAUDE_PLUGIN_ROOT}/scripts/`:
+Helper scripts are in `.claude/scripts/`:
 - `ast_parser.py` - Extract classes, methods, args from Python code
 - `call_graph.py` - Build caller->callee relationships
 - `entry_detector.py` - Find main, routes, workers

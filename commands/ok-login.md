@@ -1,6 +1,6 @@
 ---
 name: ok:login
-description: Authenticate with Okahu Cloud via GitHub Device Flow
+description: Authenticate with Okahu Cloud via Auth0 + GitHub
 argument-hint: [--force] [stage|prod]
 allowed-tools:
   - Bash
@@ -11,7 +11,7 @@ allowed-tools:
 
 # /ok-login [--force] [stage|prod]
 
-Authenticate with Okahu Cloud using GitHub Device Flow. Opens browser to github.com/login/device where user enters a code. No localhost server needed.
+Authenticate with Okahu Cloud using Auth0 Authorization Code + PKCE flow. Opens browser to Auth0 login (forced to GitHub via `connection=github`). A localhost HTTP server catches the redirect. Same flow as the Okahu VS Code extension.
 
 ## Argument Parsing
 
@@ -23,10 +23,16 @@ Examples: `/ok-login stage`, `/ok-login --force prod`, `/ok-login --force`, `/ok
 
 ## Environment Configuration
 
-| Env | GitHub OAuth App client_id | API host | Ingestion endpoint | SRE Agent URL |
-|-----|---------------------------|----------|-------------------|---------------|
-| **stage** | `Ov23liSuSur0n7NZwn78` | `https://api-stage.okahu.co` | `https://ingest-stage.okahu.co/api/v1/trace/ingest` | `https://sre-agent-stage.okahu.co/api/v1/ask_agent` |
-| **prod** | `Ov23liUr1RINNngYy8Tp` | `https://api.okahu.co` | `https://ingest.okahu.co/api/v1/trace/ingest` | `https://sre-agent.okahu.co/api/v1/ask_agent` |
+| Env | API host | MGMT host (tenant creation only) | Ingestion endpoint | SRE Agent URL |
+|-----|----------|----------------------------------|-------------------|---------------|
+| **stage** | `api-stage.okahu.co` | `provisioning-stage.okahu.co` | `https://ingest-stage.okahu.co/api/v1/trace/ingest` | `https://sre-agent-stage.okahu.co/api/v1/ask_agent` |
+| **prod** | `api.okahu.co` | `management.okahu.co` | `https://ingest.okahu.co/api/v1/trace/ingest` | `https://sre-agent.okahu.co/api/v1/ask_agent` |
+
+## Auth0 Configuration (hardcoded — public PKCE client, not secrets)
+
+- `AUTH0_DOMAIN` = `dev-x8tv172wqki41sla.us.auth0.com`
+- `AUTH0_CLIENT_ID` = `mxQbS6NjgsFOPMPLZgT7nj2BZki1eGnF`
+- `AUTH0_API_AUDIENCE` = `https://api.stage.okahu.ai/`
 
 ## Step 1: Determine environment
 
@@ -51,96 +57,180 @@ Examples: `/ok-login stage`, `/ok-login --force prod`, `/ok-login --force`, `/ok
 
 Store the resolved environment for all subsequent steps.
 
-## Step 2: GitHub Device Flow
+## Step 2: Auth0 Authorization Code + PKCE Flow
 
-### 2a. Request device code
+Use the hardcoded Auth0 values from the configuration above. Do NOT read them from `.env`.
 
-```bash
-RESPONSE=$(curl -s -X POST "https://github.com/login/device/code" \
-  -H "Accept: application/json" \
-  -d "client_id=${CLIENT_ID}&scope=user:email")
-```
+### 2a. Start localhost callback server and open browser
 
-Parse the JSON response to extract:
-- `device_code` — used for polling
-- `user_code` — shown to the user (e.g., `933F-EF84`)
-- `verification_uri` — `https://github.com/login/device`
-- `expires_in` — seconds until code expires (typically 899)
-- `interval` — minimum polling interval in seconds (typically 5)
+Run a single Python script that:
+1. Generates PKCE `code_verifier` (32 random bytes, base64url) and `code_challenge` (SHA256 of verifier, base64url)
+2. Generates random `state` (16 random bytes, base64url)
+3. Starts an HTTP server on `localhost:18292` (fixed port — registered in Auth0 allowed callbacks)
+4. Builds the Auth0 authorize URL with these params:
+   - `response_type=code`
+   - `client_id={AUTH0_LOGIN_APP_CLIENTID}`
+   - `redirect_uri=http://localhost:18292/callback`
+   - `scope=openid profile email offline_access`
+   - `state={STATE}`
+   - `code_challenge={CODE_CHALLENGE}`
+   - `code_challenge_method=S256`
+   - `audience={AUTH0_API_AUDIENCE}`
+   - `connection=github` ← forces GitHub as auth provider
+5. Opens the browser to the authorize URL
+6. Waits for a single request to `/callback`
+7. Validates `state`, extracts `code`
+8. Exchanges the code for tokens via `POST https://{AUTH0_DOMAIN}/oauth/token`:
+   ```json
+   {
+     "grant_type": "authorization_code",
+     "client_id": "{AUTH0_LOGIN_APP_CLIENTID}",
+     "code": "{CODE}",
+     "redirect_uri": "http://localhost:18292/callback",
+     "code_verifier": "{CODE_VERIFIER}"
+   }
+   ```
+   Note: No `client_secret` needed — this is a public/native client using PKCE.
+9. Returns JSON to stdout: `{"access_token": "eyJ...", "id_token": "eyJ...", "refresh_token": "..."}`
+10. Shows a success page in the browser: "Authentication successful! You can close this tab."
 
-If the response contains `"error"`, show it and stop.
-
-### 2b. Show code and open browser
-
-**CRITICAL**: Bash tool output is NOT visible to the user in Claude CLI. You MUST output the code as **direct text** (markdown outside any tool call) so the user can see it. Then open the browser with a separate Bash call.
-
-Do this in TWO parts:
-
-1. **First, output this as plain text** (NOT inside a Bash call — just write it as your response text):
+**CRITICAL**: Output the login prompt as **direct text** before running the script:
 
 ```
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   Okahu Cloud — GitHub Authentication
 
-  URL:  https://github.com/login/device
-  Code: {USER_CODE}
+  Opening browser for Auth0 login...
+  (Uses GitHub as auth provider)
 
-  Enter the code above in your browser.
   Waiting for authorization...
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ```
 
-2. **Then open the browser** with a Bash call:
+Here is the Python script to run via Bash. Pass Auth0 vars as environment:
 
 ```bash
-open "https://github.com/login/device"
+python3 -c '
+import hashlib, base64, os, json, sys, webbrowser, urllib.request, urllib.parse
+from http.server import HTTPServer, BaseHTTPRequestHandler
+
+domain = "dev-x8tv172wqki41sla.us.auth0.com"
+client_id = "mxQbS6NjgsFOPMPLZgT7nj2BZki1eGnF"
+audience = "https://api.stage.okahu.ai/"
+
+verifier = base64.urlsafe_b64encode(os.urandom(32)).rstrip(b"=").decode()
+challenge = base64.urlsafe_b64encode(hashlib.sha256(verifier.encode()).digest()).rstrip(b"=").decode()
+state = base64.urlsafe_b64encode(os.urandom(16)).rstrip(b"=").decode()
+
+result = {}
+
+class Handler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        nonlocal result
+        params = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
+        if params.get("state", [None])[0] != state:
+            self.send_response(400)
+            self.end_headers()
+            self.wfile.write(b"State mismatch")
+            result = {"error": "state_mismatch"}
+            return
+        if "error" in params:
+            self.send_response(400)
+            self.end_headers()
+            self.wfile.write(params["error_description"][0].encode() if "error_description" in params else b"Auth error")
+            result = {"error": params["error"][0], "error_description": params.get("error_description", [""])[0]}
+            return
+        code = params.get("code", [None])[0]
+        if not code:
+            self.send_response(400)
+            self.end_headers()
+            self.wfile.write(b"No code received")
+            result = {"error": "no_code"}
+            return
+
+        token_data = urllib.parse.urlencode({
+            "grant_type": "authorization_code",
+            "client_id": client_id,
+            "code": code,
+            "redirect_uri": redirect_uri,
+            "code_verifier": verifier,
+        }).encode()
+        req = urllib.request.Request(
+            f"https://{domain}/oauth/token",
+            data=token_data,
+            headers={"Content-Type": "application/x-www-form-urlencoded"},
+        )
+        try:
+            resp = urllib.request.urlopen(req)
+            result = json.loads(resp.read())
+        except Exception as e:
+            result = {"error": "token_exchange_failed", "error_description": str(e)}
+
+        self.send_response(200)
+        self.send_header("Content-Type", "text/html")
+        self.end_headers()
+        if "error" in result:
+            self.wfile.write(b"<h2>Authentication failed</h2><p>Check the terminal for details.</p>")
+        else:
+            self.wfile.write(b"<h2>Authentication successful!</h2><p>You can close this tab.</p>")
+
+    def log_message(self, *args):
+        pass
+
+server = HTTPServer(("localhost", 18292), Handler)
+redirect_uri = "http://localhost:18292/callback"
+
+params = urllib.parse.urlencode({
+    "response_type": "code",
+    "client_id": client_id,
+    "redirect_uri": redirect_uri,
+    "scope": "openid profile email offline_access",
+    "state": state,
+    "code_challenge": challenge,
+    "code_challenge_method": "S256",
+    "audience": audience,
+    "connection": "github",
+})
+auth_url = f"https://{domain}/authorize?{params}"
+
+webbrowser.open(auth_url)
+server.handle_request()
+server.server_close()
+print(json.dumps(result))
+'
 ```
 
-The text output appears immediately in the CLI. The user sees the code while the browser opens.
+Parse the JSON output. If it contains `"error"`, show the error and stop. Otherwise extract `access_token`, `id_token`, and optionally `refresh_token`.
 
-### 2c. Poll for authorization
+### 2b. Extract user info from JWT
 
-Poll GitHub every `interval` seconds until authorized or expired. Use a bash loop:
+Decode the `id_token` payload (or fall back to `access_token`) to get user claims:
 
 ```bash
-while true; do
-  TOKEN_RESPONSE=$(curl -s -X POST "https://github.com/login/oauth/access_token" \
-    -H "Accept: application/json" \
-    -d "client_id=${CLIENT_ID}&device_code=${DEVICE_CODE}&grant_type=urn:ietf:params:oauth:grant-type:device_code")
-  # check response...
-  sleep $INTERVAL
-done
+echo "$ID_TOKEN" | cut -d. -f2 | tr '_-' '/+' | base64 -d 2>/dev/null
 ```
 
-Handle poll responses:
-- `"error": "authorization_pending"` — keep polling
-- `"error": "slow_down"` — increase interval by 5 seconds, keep polling
-- `"error": "expired_token"` — code expired, tell user to run `/ok-login` again
-- `"error": "access_denied"` — user cancelled, stop
-- `"access_token": "gho_xxx"` — success! Proceed to Step 3
+Extract:
+- `email` — user's email
+- `name` or `nickname` — display name  
+- `sub` — Auth0 user ID (e.g. `github|12345`)
 
-Print a dot every poll cycle so the user knows it's waiting.
-
-### 2d. Fetch user info
-
-Once we have the GitHub access token, fetch user details:
-
+If `id_token` is missing, call the Auth0 userinfo endpoint:
 ```bash
-USER=$(curl -s -H "Authorization: Bearer ${ACCESS_TOKEN}" -H "Accept: application/json" https://api.github.com/user)
-EMAILS=$(curl -s -H "Authorization: Bearer ${ACCESS_TOKEN}" -H "Accept: application/json" https://api.github.com/user/emails)
+curl -s "https://${AUTH0_DOMAIN}/userinfo" -H "Authorization: Bearer ${ACCESS_TOKEN}"
 ```
-
-Extract `username` and primary `email`.
 
 ## Step 3: Resolve tenant and generate API key
 
-Use the GitHub access token as a Bearer token to resolve the user's tenant and auto-generate an API key (same flow as the Okahu VS Code extension).
+Use the Auth0 JWT (`access_token`) as a Bearer token. The VS Code extension uses:
+- `API_HOST` for tenant fetch and key generation
+- `MGMT_HOST` for tenant creation (new users only)
 
 ### 3a. Fetch tenant info
 
 ```bash
 TENANT_RESPONSE=$(curl -s -w "\n%{http_code}" \
-  "${API_HOST}/api/v1/tenant" \
+  "https://${API_HOST}/api/v1/tenant" \
   -H "Authorization: Bearer ${ACCESS_TOKEN}" \
   -H "Content-Type: application/json")
 HTTP_CODE=$(echo "$TENANT_RESPONSE" | tail -1)
@@ -153,21 +243,36 @@ BODY=$(echo "$TENANT_RESPONSE" | sed '$d')
 
 ### 3b. Create tenant (new users only)
 
+**Note**: Tenant creation uses `MGMT_HOST`, not `API_HOST` (matches VS Code extension `createTenantWithAccessToken`).
+
 ```bash
-CREATE_RESPONSE=$(curl -s -X POST "${API_HOST}/api/v1/tenants" \
+CREATE_RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
+  "https://${MGMT_HOST}/api/v1/tenant" \
   -H "Authorization: Bearer ${ACCESS_TOKEN}" \
   -H "Content-Type: application/json" \
-  -d "{\"email\": \"${EMAIL}\"}")
+  -d "{\"display_name\": \"${EMAIL}\", \"provisioning_source\": \"Claude Code CLI\"}")
+HTTP_CODE=$(echo "$CREATE_RESPONSE" | tail -1)
+BODY=$(echo "$CREATE_RESPONSE" | sed '$d')
 ```
 
 Extract `tenant_id` from the response. If creation fails, show error and stop.
+
+After tenant creation, the access token may need refreshing (it won't have the tenant claim yet). If a `refresh_token` was obtained in Step 2, refresh now:
+
+```bash
+REFRESH_RESPONSE=$(curl -s -X POST "https://${AUTH0_DOMAIN}/oauth/token" \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  -d "grant_type=refresh_token&client_id=${AUTH0_LOGIN_APP_CLIENTID}&refresh_token=${REFRESH_TOKEN}")
+```
+
+Extract the new `access_token` from the response and use it for Step 3c.
 
 ### 3c. Generate API key
 
 ```bash
 KEY_NAME="claude-code-key-$(date -u +%Y-%m-%dT%H:%M:%S.000Z)"
 KEY_RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
-  "${API_HOST}/api/v1/tenants/${TENANT_ID}/keys" \
+  "https://${API_HOST}/api/v1/tenants/${TENANT_ID}/keys" \
   -H "Authorization: Bearer ${ACCESS_TOKEN}" \
   -H "Content-Type: application/json" \
   -d "{\"name\": \"${KEY_NAME}\"}")
@@ -181,7 +286,7 @@ BODY=$(echo "$KEY_RESPONSE" | sed '$d')
 - **Other error**: Show error and stop
 
 **If the API returns 404 on any of these endpoints** (not yet deployed), fall back gracefully:
-> "Authenticated with GitHub as **{username}** ({email}).
+> "Authenticated as **{name}** ({email}).
 > API key auto-generation not yet available for {env}.
 > Get your API key from the Okahu dashboard and add to `.env`:
 > `export OKAHU_API_KEY=okh_...`"
@@ -190,34 +295,51 @@ Then skip to Step 4 to save what we have (without the API key).
 
 ## Step 4: Save credentials
 
-Update `.env` with the resolved environment settings:
+### 4a. Back up existing API key
+
+Before overwriting `OKAHU_API_KEY` in `.env`, check if one already exists. If it does, comment it out with a timestamp so the user can recover it:
+
+```
+# Backed up by /ok-login on 2026-05-21T10:30:00Z
+# export OKAHU_API_KEY="okh_TvXJNYyn_PLj0x0qXRcyafFXRydgA"
+export OKAHU_API_KEY="okh_newkey..."
+```
+
+Similarly for `OKAHU_INGESTION_ENDPOINT` if it changes.
+
+### 4b. Update .env
 
 1. Read existing `.env`
-2. Update or add these lines (preserving other content):
-   - `OKAHU_API_KEY={value}` (if obtained from exchange)
-   - `OKAHU_INGESTION_ENDPOINT={endpoint for env}`
-3. Write back
+2. For each key being updated (`OKAHU_API_KEY`, `OKAHU_INGESTION_ENDPOINT`):
+   - If the line exists and the value is **different**: comment out the old line with backup header, add new line below
+   - If the line exists and the value is the **same**: leave unchanged
+   - If the line does not exist: append it
+3. Write back (preserving all other content)
 
-Save auth metadata to `.claude/state/okahu_auth.json`:
+### 4c. Save auth metadata
+
+Save to `.claude/state/okahu_auth.json`:
 
 ```json
 {
   "environment": "stage",
-  "github_username": "{username}",
-  "github_email": "{email}",
+  "auth0_sub": "github|12345",
+  "email": "hoc@okahu.ai",
+  "name": "hocokahu",
   "tenant_id": "{tenant_id}",
   "api_key_name": "claude-code-key-{timestamp}",
-  "authenticated_at": "2026-04-30T12:00:00Z",
-  "method": "device_flow",
-  "client_id": "Ov23liSuSur0n7NZwn78"
+  "authenticated_at": "2026-05-21T10:30:00Z",
+  "method": "auth0_pkce"
 }
 ```
 
 Print success summary:
 
 ```
-Authenticated as {username} ({email})
-Environment: stage
+Authenticated as {name} ({email})
+Environment: {env}
+Tenant: {tenant_id}
+API key saved to .env (previous key backed up)
 ```
 
 ## Error Handling
@@ -225,4 +347,4 @@ Environment: stage
 - All errors are non-fatal — print a clear message and stop
 - Never expose full tokens in output (show first 8 chars + `...`)
 - If browser fails to open, print the URL so user can copy/paste
-- If device code expires, tell user to run `/ok-login` again
+- The localhost server has a 120-second timeout — if no callback received, stop with "Authentication timed out"
